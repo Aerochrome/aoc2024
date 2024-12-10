@@ -22,10 +22,91 @@ type ParseResult struct {
 
 func main() {
 	input := getInput()
-	validUpdates := findValidPageUpdates(input)
+	validUpdates, invalidUpdates := findValidPageUpdates(input)
 	middleNumSum := getMiddleNumSum(validUpdates)
 
-	fmt.Printf("middle num sum: %d", middleNumSum)
+	fixedInputs := validateInvalidUpdates(invalidUpdates, input.Rules)
+	middleSumForFixed := getMiddleNumSum(fixedInputs)
+
+	fmt.Printf("middle num sum: %d\n", middleNumSum)
+	fmt.Printf("fixed middle num sum: %d", middleSumForFixed)
+}
+
+func validateInvalidUpdates(invalidUpdates [][]int, rules map[int][]Rule) [][]int {
+	valid := make([][]int, 0, len(invalidUpdates))
+
+	for _, update := range invalidUpdates {
+		valid = append(valid, findValidOrder(update, rules))
+	}
+
+	return valid
+}
+
+type Node struct {
+	value int
+	left  *Node
+	right *Node
+}
+
+func newNode(value int) *Node {
+	return &Node{
+		value: value,
+		left:  nil,
+		right: nil,
+	}
+}
+
+func findValidOrder(invalidUpdate []int, rules map[int][]Rule) []int {
+	var rootNode *Node
+
+	for _, num := range invalidUpdate {
+		if rootNode == nil {
+			rootNode = newNode(num)
+			continue
+		}
+
+		rulesForNum, _ := rules[num]
+		insertIntoNode(rootNode, num, rulesForNum)
+	}
+
+	return flattenNode(rootNode)
+}
+
+func insertIntoNode(node *Node, value int, rulesForValue []Rule) {
+	for _, rule := range rulesForValue {
+		if rule.Number != node.value {
+			continue
+		}
+
+		if rule.Type == "bigger" {
+			if node.right == nil {
+				node.right = newNode(value)
+				return
+			}
+			insertIntoNode(node.right, value, rulesForValue)
+			return
+		}
+	}
+
+	if node.left == nil {
+		node.left = newNode(value)
+		return
+	}
+	insertIntoNode(node.left, value, rulesForValue)
+}
+
+func flattenNode(node *Node) []int {
+	if node == nil {
+		return []int{}
+	}
+
+	flattened := make([]int, 0)
+
+	flattened = append(flattened, flattenNode(node.left)...)
+	flattened = append(flattened, node.value)
+	flattened = append(flattened, flattenNode(node.right)...)
+
+	return flattened
 }
 
 func getMiddleNumSum(validUpdates [][]int) int {
@@ -42,16 +123,19 @@ func getMiddleNumSum(validUpdates [][]int) int {
 	return sum
 }
 
-func findValidPageUpdates(result ParseResult) [][]int {
+func findValidPageUpdates(result ParseResult) ([][]int, [][]int) {
 	validUpdates := make([][]int, 0, len(result.PageUpdates))
+	invalidUpdates := make([][]int, 0, len(result.PageUpdates))
 
 	for _, update := range result.PageUpdates {
 		if isPageUpdateValid(update, result.Rules) {
 			validUpdates = append(validUpdates, update)
+		} else {
+			invalidUpdates = append(invalidUpdates, update)
 		}
 	}
 
-	return validUpdates
+	return validUpdates, invalidUpdates
 }
 
 func isPageUpdateValid(update []int, rules map[int][]Rule) bool {
